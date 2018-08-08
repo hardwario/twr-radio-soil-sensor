@@ -175,7 +175,7 @@ void application_init(void)
 
     // Initialize radio
     bc_radio_init(BC_RADIO_MODE_NODE_SLEEPING);
-    bc_radio_pairing_request("kit-wireless-soil-sensor", VERSION);
+    bc_radio_pairing_request("soil-sensor", VERSION);
 
     bc_scheduler_register(switch_to_normal_mode_task, NULL, SERVICE_INTERVAL_INTERVAL);
 
