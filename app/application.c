@@ -1,20 +1,18 @@
 #include <application.h>
 
-#define SERVICE_INTERVAL_INTERVAL           (60 * 60 * 1000)
-#define BATTERY_UPDATE_INTERVAL             (60 * 60 * 1000)
-#define TEMPERATURE_PUB_NO_CHANGE_INTEVAL   (15 * 60 * 1000)
-#define TEMPERATURE_PUB_VALUE_CHANGE        0.5f
-#define TEMPERATURE_UPDATE_SERVICE_INTERVAL (5 * 1000)
-#define TEMPERATURE_UPDATE_NORMAL_INTERVAL  (30 * 1000)
+#define TEMPERATURE_PUB_INTERVAL            (15 * 60 * 1000)
+#define TEMPERATURE_PUB_DIFFERENCE          1.0f
+#define TEMPERATURE_UPDATE_SERVICE_INTERVAL (1 * 1000)
+#define TEMPERATURE_UPDATE_NORMAL_INTERVAL  (10 * 1000)
 #define MOISTURE_PUB_NO_CHANGE_INTEVAL      (60 * 60 * 1000)
 #define MOISTURE_PUB_VALUE_CHANGE           5
 
 // LED instance
 bc_led_t led;
-
 // Button instance
 bc_button_t button;
-
+// Thermometer instance
+bc_tmp112_t tmp112;
 bc_soil_sensor_t soil_sensor;
 struct
 {
@@ -28,15 +26,6 @@ struct
     bc_tick_t next_pub;
 
 } soil_sensor_moisture = { .next_pub = 0 };
-
-// Thermometer instance
-bc_tmp112_t tmp112;
-struct
-{
-    float value;
-    bc_tick_t next_pub;
-
-} tmp112_temperature = { .next_pub = 0 };
 
 void button_event_handler(bc_button_t *self, bc_button_event_t event, void *event_param)
 {
@@ -120,19 +109,45 @@ void battery_event_handler(bc_module_battery_event_t event, void *event_param)
 
 void tmp112_event_handler(bc_tmp112_t *self, bc_tmp112_event_t event, void *event_param)
 {
-    float value;
+    // Time of next report
+    static bc_tick_t tick_report = 0;
+
+    // Last value used for change comparison
+    static float last_published_temperature = NAN;
 
     if (event == BC_TMP112_EVENT_UPDATE)
     {
-        if (bc_tmp112_get_temperature_celsius(self, &value))
+        float temperature;
+
+        if (bc_tmp112_get_temperature_celsius(self, &temperature))
         {
-            if ((fabsf(value - tmp112_temperature.value) >= TEMPERATURE_PUB_VALUE_CHANGE) || (tmp112_temperature.next_pub < bc_tick_get()))
+            // Implicitly do not publish message on radio
+            bool publish = false;
+
+            // Is time up to report temperature?
+            if (bc_tick_get() >= tick_report)
             {
-                bc_radio_pub_temperature(BC_RADIO_PUB_CHANNEL_R1_I2C0_ADDRESS_ALTERNATE, &value);
+                // Publish message on radio
+                publish = true;
+            }
 
-                tmp112_temperature.value = value;
+            // Is temperature difference from last published value significant?
+            if (fabsf(temperature - last_published_temperature) >= TEMPERATURE_PUB_DIFFERENCE)
+        {
+                // Publish message on radio
+                publish = true;
+            }
 
-                tmp112_temperature.next_pub = bc_tick_get() + TEMPERATURE_PUB_NO_CHANGE_INTEVAL;
+            if (publish)
+            {
+                // Publish temperature message on radio
+                bc_radio_pub_temperature(BC_RADIO_PUB_CHANNEL_R1_I2C0_ADDRESS_ALTERNATE, &temperature);
+
+                // Schedule next temperature report
+                tick_report = bc_tick_get() + TEMPERATURE_PUB_INTERVAL;
+
+                // Remember last published value
+                last_published_temperature = temperature;
             }
         }
     }
@@ -158,6 +173,11 @@ void application_init(void)
     bc_button_init(&button, BC_GPIO_BUTTON, BC_GPIO_PULL_DOWN, false);
     bc_button_set_event_handler(&button, button_event_handler, NULL);
 
+    // Initialize thermometer sensor on core module
+    bc_tmp112_init(&tmp112, BC_I2C_I2C0, 0x49);
+    bc_tmp112_set_event_handler(&tmp112, tmp112_event_handler, NULL);
+    bc_tmp112_set_update_interval(&tmp112, TEMPERATURE_UPDATE_SERVICE_INTERVAL);
+
     // Initialize soil sensor
     bc_soil_sensor_init(&soil_sensor, 0x00);
     bc_soil_sensor_set_event_handler(&soil_sensor, soil_sensor_event_handler, NULL);
@@ -167,11 +187,6 @@ void application_init(void)
     bc_module_battery_init();
     bc_module_battery_set_event_handler(battery_event_handler, NULL);
     bc_module_battery_set_update_interval(BATTERY_UPDATE_INTERVAL);
-
-    // Initialize thermometer sensor on core module
-    bc_tmp112_init(&tmp112, BC_I2C_I2C0, 0x49);
-    bc_tmp112_set_event_handler(&tmp112, tmp112_event_handler, NULL);
-    bc_tmp112_set_update_interval(&tmp112, TEMPERATURE_UPDATE_SERVICE_INTERVAL);
 
     // Initialize radio
     bc_radio_init(BC_RADIO_MODE_NODE_SLEEPING);
