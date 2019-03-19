@@ -29,10 +29,31 @@ struct
 
 void button_event_handler(bc_button_t *self, bc_button_event_t event, void *event_param)
 {
-    if (event == BC_BUTTON_EVENT_PRESS)
+    // Counters for button events
+    static uint16_t button_click_count = 0;
+    static uint16_t button_hold_count = 0;
+
+    if (event == BC_BUTTON_EVENT_CLICK)
     {
-        bc_led_set_mode(&led, BC_LED_MODE_TOGGLE);
+        // Pulse LED for 100 milliseconds
+        bc_led_pulse(&led, 100);
+
+        // Increment press count
+        button_click_count++;
+
+        // Publish button message on radio
+        bc_radio_pub_push_button(&button_click_count);
     }
+    else if (event == BC_BUTTON_EVENT_HOLD)
+    {
+        // Pulse LED for 250 milliseconds
+        bc_led_pulse(&led, 250);
+
+        // Increment hold count
+        button_hold_count++;
+        // Publish message on radio
+        bc_radio_pub_event_count(BC_RADIO_PUB_EVENT_HOLD_BUTTON, &button_hold_count);
+}
 }
 
 void soil_sensor_event_handler(bc_soil_sensor_t *self, bc_soil_sensor_event_t event, void *event_param)
