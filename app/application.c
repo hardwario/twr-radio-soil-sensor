@@ -1,11 +1,21 @@
 #include <application.h>
 
+#define MAX_SOIL_SENSORS                    5
+
+#define SERVICE_MODE_INTERVAL               (15 * 60 * 1000)
+#define BATTERY_UPDATE_INTERVAL             (60 * 60 * 1000)
+
 #define TEMPERATURE_PUB_INTERVAL            (15 * 60 * 1000)
 #define TEMPERATURE_PUB_DIFFERENCE          1.0f
 #define TEMPERATURE_UPDATE_SERVICE_INTERVAL (1 * 1000)
 #define TEMPERATURE_UPDATE_NORMAL_INTERVAL  (10 * 1000)
-#define MOISTURE_PUB_NO_CHANGE_INTEVAL      (60 * 60 * 1000)
-#define MOISTURE_PUB_VALUE_CHANGE           5
+
+#define SENSOR_UPDATE_SERVICE_INTERVAL      (1 * 1000)
+#define SENSOR_UPDATE_NORMAL_INTERVAL       (60 * 1000)
+#define SENSOR_MOISTURE_PUB_INTERVAL        (15 * 60 * 1000)
+#define SENSOR_MOISTURE_PUB_DIFFERENCE      5.0f
+#define SENSOR_TEMPERATURE_PUB_INTERVAL     (15 * 60 * 1000)
+#define SENSOR_TEMPERATURE_PUB_DIFFERENCE   1.0f
 
 // LED instance
 bc_led_t led;
@@ -13,19 +23,19 @@ bc_led_t led;
 bc_button_t button;
 // Thermometer instance
 bc_tmp112_t tmp112;
+// Soil sensor instance
 bc_soil_sensor_t soil_sensor;
-struct
-{
-    float value;
-    bc_tick_t next_pub;
+// Sensors array
+bc_soil_sensor_sensor_t sensors[MAX_SOIL_SENSORS];
+// Time of next sensor temperature report
+bc_tick_t sensor_temperature_tick_report[MAX_SOIL_SENSORS];
+// Last sensor temperature value used for change comparison
+float sensor_last_published_temperature[MAX_SOIL_SENSORS];
+// Time of next sensor moisture report
+bc_tick_t sensor_moisture_tick_report[MAX_SOIL_SENSORS];
+// Last sensor moisture value used for change comparison
+int sensor_last_published_moisture[MAX_SOIL_SENSORS];
 
-} soil_sensor_temperature = { .next_pub = 0 };
-struct
-{
-    int value;
-    bc_tick_t next_pub;
-
-} soil_sensor_moisture = { .next_pub = 0 };
 
 void button_event_handler(bc_button_t *self, bc_button_event_t event, void *event_param)
 {
@@ -53,62 +63,6 @@ void button_event_handler(bc_button_t *self, bc_button_event_t event, void *even
         button_hold_count++;
         // Publish message on radio
         bc_radio_pub_event_count(BC_RADIO_PUB_EVENT_HOLD_BUTTON, &button_hold_count);
-}
-}
-
-void soil_sensor_event_handler(bc_soil_sensor_t *self, bc_soil_sensor_event_t event, void *event_param)
-{
-    if (event == BC_SOIL_SENSOR_EVENT_UPDATE_THERMOMETER)
-    {
-        float temperature = NAN;
-
-        if (!bc_soil_sensor_get_temperature_celsius(self, &temperature))
-        {
-            bc_log_error("bc_soil_sensor_get_temperature_celsius");
-
-            return;
-        }
-
-        if ((fabsf(temperature - soil_sensor_temperature.value) >= TEMPERATURE_PUB_VALUE_CHANGE) || (soil_sensor_temperature.next_pub < bc_tick_get()))
-        {
-            bc_radio_pub_float("soil-sensor/0000000000000000/temperature", &temperature);
-
-            soil_sensor_temperature.value = temperature;
-
-            soil_sensor_temperature.next_pub = bc_tick_get() + TEMPERATURE_PUB_NO_CHANGE_INTEVAL;
-        }
-
-        bc_log_info("soil-sensor temperature %.1f °C", temperature);
-    }
-    else if (event == BC_SOIL_SENSOR_EVENT_UPDATE_MOISTURE)
-    {
-        int moisture;
-
-        if (!bc_soil_sensor_get_moisture(self, &moisture))
-        {
-            bc_log_error("bc_soil_sensor_get_moisture");
-
-            return;
-        }
-
-        if ((abs(moisture - soil_sensor_moisture.value) >= MOISTURE_PUB_VALUE_CHANGE) || (soil_sensor_moisture.next_pub < bc_tick_get()))
-        {
-            bc_radio_pub_int("soil-sensor/0000000000000000/moisture", &moisture);
-
-            soil_sensor_moisture.value = moisture;
-
-            soil_sensor_moisture.next_pub = bc_tick_get() + MOISTURE_PUB_NO_CHANGE_INTEVAL;
-        }
-
-        bc_log_info("soil-sensor moisture %d %", moisture);
-    }
-    else if (event == BC_SOIL_SENSOR_EVENT_ERROR_THERMOMETER)
-    {
-        bc_log_error("BC_SOIL_SENSOR_EVENT_ERROR_THERMOMETER");
-    }
-    else if (event == BC_SOIL_SENSOR_EVENT_ERROR_MOISTURE)
-    {
-        bc_log_error("BC_SOIL_SENSOR_EVENT_ERROR_MOISTURE");
     }
 }
 
@@ -154,7 +108,7 @@ void tmp112_event_handler(bc_tmp112_t *self, bc_tmp112_event_t event, void *even
 
             // Is temperature difference from last published value significant?
             if (fabsf(temperature - last_published_temperature) >= TEMPERATURE_PUB_DIFFERENCE)
-        {
+            {
                 // Publish message on radio
                 publish = true;
             }
@@ -174,18 +128,109 @@ void tmp112_event_handler(bc_tmp112_t *self, bc_tmp112_event_t event, void *even
     }
 }
 
+
+void soil_sensor_event_handler(bc_soil_sensor_t *self, uint64_t device_address, bc_soil_sensor_event_t event, void *event_param)
+{
+    static char topic[64];
+
+    if (event == BC_SOIL_SENSOR_EVENT_UPDATE)
+    {
+        int index = bc_soil_sensor_get_index_by_device_address(self, device_address);
+
+        if (index < 0)
+        {
+            return;
+        }
+
+        float temperature;
+
+        if (bc_soil_sensor_get_temperature_celsius(self, device_address, &temperature))
+        {
+            bool publish = false;
+
+            // Is time up to report temperature?
+            if (bc_tick_get() >= sensor_temperature_tick_report[index])
+            {
+                // Publish message on radio
+                publish = true;
+            }
+
+            // Is temperature difference from last published value significant?
+            if (fabsf(temperature - sensor_last_published_temperature[index]) >= TEMPERATURE_PUB_DIFFERENCE)
+            {
+                // Publish message on radio
+                publish = true;
+            }
+
+            if (publish)
+            {
+                snprintf(topic, sizeof(topic), "soil-sensor/%llx/temperature", device_address);
+
+                // Publish temperature message on radio
+                bc_radio_pub_float(topic, &temperature);
+
+                // Schedule next temperature report
+                sensor_temperature_tick_report[index] = bc_tick_get() + TEMPERATURE_PUB_INTERVAL;
+
+                // Remember last published value
+                sensor_last_published_temperature[index] = temperature;
+            }
+        }
+
+        int moisture;
+
+        if (bc_soil_sensor_get_moisture(self, device_address, &moisture))
+        {
+            bool publish = false;
+
+            // Is time up to report sensor moisture?
+            if (bc_tick_get() >= sensor_moisture_tick_report[index])
+            {
+                // Publish message on radio
+                publish = true;
+            }
+
+            // Is sensor moisture difference from last published value significant?
+            if (abs(moisture - sensor_last_published_moisture[index]) >= SENSOR_MOISTURE_PUB_DIFFERENCE)
+            {
+                // Publish message on radio
+                publish = true;
+            }
+
+            if (publish)
+            {
+                snprintf(topic, sizeof(topic), "soil-sensor/%llx/moisture", device_address);
+
+                // Publish sensor moisture message on radio
+                bc_radio_pub_int(topic, &moisture);
+
+                // Schedule next moisture report
+                sensor_moisture_tick_report[index] = bc_tick_get() + SENSOR_MOISTURE_PUB_INTERVAL;
+
+                // Remember last published value
+                sensor_last_published_moisture[index] = moisture;
+            }
+        }
+    }
+    else if (event == BC_SOIL_SENSOR_EVENT_ERROR)
+    {
+        int error = bc_soil_sensor_get_error(self);
+        bc_radio_pub_int("soil-sensor/-/error", &error);
+    }
+}
+
 void switch_to_normal_mode_task(void *param)
 {
     bc_tmp112_set_update_interval(&tmp112, TEMPERATURE_UPDATE_NORMAL_INTERVAL);
 
-    bc_soil_sensor_set_update_interval_all_sensors(&soil_sensor, 60 * 1000);
+    bc_soil_sensor_set_update_interval(&soil_sensor, SENSOR_UPDATE_NORMAL_INTERVAL);
 
     bc_scheduler_unregister(bc_scheduler_get_current_task_id());
 }
 
 void application_init(void)
 {
-    bc_log_init(BC_LOG_LEVEL_DEBUG, BC_LOG_TIMESTAMP_ABS);
+    bc_log_init(BC_LOG_LEVEL_DUMP, BC_LOG_TIMESTAMP_ABS);
 
     // Initialize LED
     bc_led_init(&led, BC_GPIO_LED, false, false);
@@ -200,9 +245,9 @@ void application_init(void)
     bc_tmp112_set_update_interval(&tmp112, TEMPERATURE_UPDATE_SERVICE_INTERVAL);
 
     // Initialize soil sensor
-    bc_soil_sensor_init(&soil_sensor, 0x00);
+    bc_soil_sensor_init_multiple(&soil_sensor, sensors, 5);
     bc_soil_sensor_set_event_handler(&soil_sensor, soil_sensor_event_handler, NULL);
-    bc_soil_sensor_set_update_interval_all_sensors(&soil_sensor, 3000);
+    bc_soil_sensor_set_update_interval(&soil_sensor, SENSOR_UPDATE_SERVICE_INTERVAL);
 
     // Initialize battery
     bc_module_battery_init();
@@ -213,7 +258,7 @@ void application_init(void)
     bc_radio_init(BC_RADIO_MODE_NODE_SLEEPING);
     bc_radio_pairing_request("soil-sensor", VERSION);
 
-    bc_scheduler_register(switch_to_normal_mode_task, NULL, SERVICE_INTERVAL_INTERVAL);
+    bc_scheduler_register(switch_to_normal_mode_task, NULL, SERVICE_MODE_INTERVAL);
 
     bc_led_pulse(&led, 2000);
 }
