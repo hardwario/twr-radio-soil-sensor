@@ -12,9 +12,9 @@
 
 #define SENSOR_UPDATE_SERVICE_INTERVAL      (1 * 1000)
 #define SENSOR_UPDATE_NORMAL_INTERVAL       (60 * 1000)
-#define SENSOR_MOISTURE_PUB_INTERVAL        (15 * 60 * 1000)
+#define SENSOR_MOISTURE_PUB_INTERVAL        (5 * 60 * 1000)
 #define SENSOR_MOISTURE_PUB_DIFFERENCE      5.0f
-#define SENSOR_TEMPERATURE_PUB_INTERVAL     (15 * 60 * 1000)
+#define SENSOR_TEMPERATURE_PUB_INTERVAL     (5 * 60 * 1000)
 #define SENSOR_TEMPERATURE_PUB_DIFFERENCE   1.0f
 
 // LED instance
@@ -203,6 +203,15 @@ void soil_sensor_event_handler(bc_soil_sensor_t *self, uint64_t device_address, 
 
                 // Publish sensor moisture message on radio
                 bc_radio_pub_int(topic, &moisture);
+
+                /*
+                // Print also RAW value from capacitance chip
+                int raw = 0;
+                bc_soil_sensor_get_cap_raw(self, device_address, (uint16_t*)&raw);
+                snprintf(topic, sizeof(topic), "soil-sensor/%llx/raw", device_address);
+                // Publish sensor RAW message on radio
+                bc_radio_pub_int(topic, &raw);
+                */
 
                 // Schedule next moisture report
                 sensor_moisture_tick_report[index] = bc_tick_get() + SENSOR_MOISTURE_PUB_INTERVAL;
