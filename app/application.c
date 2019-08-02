@@ -10,12 +10,8 @@
 #define TEMPERATURE_UPDATE_SERVICE_INTERVAL (1 * 1000)
 #define TEMPERATURE_UPDATE_NORMAL_INTERVAL  (10 * 1000)
 
-#define SENSOR_UPDATE_SERVICE_INTERVAL      (1 * 1000)
-#define SENSOR_UPDATE_NORMAL_INTERVAL       (60 * 1000)
-#define SENSOR_MOISTURE_PUB_INTERVAL        (5 * 60 * 1000)
-#define SENSOR_MOISTURE_PUB_DIFFERENCE      5.0f
-#define SENSOR_TEMPERATURE_PUB_INTERVAL     (5 * 60 * 1000)
-#define SENSOR_TEMPERATURE_PUB_DIFFERENCE   1.0f
+#define SENSOR_UPDATE_SERVICE_INTERVAL      (15 * 1000)
+#define SENSOR_UPDATE_NORMAL_INTERVAL       (5 * 60 * 1000)
 
 // LED instance
 bc_led_t led;
@@ -27,15 +23,6 @@ bc_tmp112_t tmp112;
 bc_soil_sensor_t soil_sensor;
 // Sensors array
 bc_soil_sensor_sensor_t sensors[MAX_SOIL_SENSORS];
-// Time of next sensor temperature report
-bc_tick_t sensor_temperature_tick_report[MAX_SOIL_SENSORS];
-// Last sensor temperature value used for change comparison
-float sensor_last_published_temperature[MAX_SOIL_SENSORS];
-// Time of next sensor moisture report
-bc_tick_t sensor_moisture_tick_report[MAX_SOIL_SENSORS];
-// Last sensor moisture value used for change comparison
-int sensor_last_published_moisture[MAX_SOIL_SENSORS];
-
 
 void button_event_handler(bc_button_t *self, bc_button_event_t event, void *event_param)
 {
@@ -128,7 +115,6 @@ void tmp112_event_handler(bc_tmp112_t *self, bc_tmp112_event_t event, void *even
     }
 }
 
-
 void soil_sensor_event_handler(bc_soil_sensor_t *self, uint64_t device_address, bc_soil_sensor_event_t event, void *event_param)
 {
     static char topic[64];
@@ -146,79 +132,29 @@ void soil_sensor_event_handler(bc_soil_sensor_t *self, uint64_t device_address, 
 
         if (bc_soil_sensor_get_temperature_celsius(self, device_address, &temperature))
         {
-            bool publish = false;
+            snprintf(topic, sizeof(topic), "soil-sensor/%llx/temperature", device_address);
 
-            // Is time up to report temperature?
-            if (bc_tick_get() >= sensor_temperature_tick_report[index])
-            {
-                // Publish message on radio
-                publish = true;
-            }
-
-            // Is temperature difference from last published value significant?
-            if (fabsf(temperature - sensor_last_published_temperature[index]) >= TEMPERATURE_PUB_DIFFERENCE)
-            {
-                // Publish message on radio
-                publish = true;
-            }
-
-            if (publish)
-            {
-                snprintf(topic, sizeof(topic), "soil-sensor/%llx/temperature", device_address);
-
-                // Publish temperature message on radio
-                bc_radio_pub_float(topic, &temperature);
-
-                // Schedule next temperature report
-                sensor_temperature_tick_report[index] = bc_tick_get() + TEMPERATURE_PUB_INTERVAL;
-
-                // Remember last published value
-                sensor_last_published_temperature[index] = temperature;
-            }
+            // Publish temperature message on radio
+            bc_radio_pub_float(topic, &temperature);
         }
 
-        int moisture;
+        uint16_t raw_cap_u16;
 
-        if (bc_soil_sensor_get_moisture(self, device_address, &moisture))
+        if (bc_soil_sensor_get_cap_raw(self, device_address, &raw_cap_u16))
         {
-            bool publish = false;
+            snprintf(topic, sizeof(topic), "soil-sensor/%llx/raw", device_address);
 
-            // Is time up to report sensor moisture?
-            if (bc_tick_get() >= sensor_moisture_tick_report[index])
-            {
-                // Publish message on radio
-                publish = true;
-            }
+            // Publish raw capacitance value message on radio
+            int raw_cap = (int)raw_cap_u16;
+            bc_radio_pub_int(topic, &raw_cap);
 
-            // Is sensor moisture difference from last published value significant?
-            if (abs(moisture - sensor_last_published_moisture[index]) >= SENSOR_MOISTURE_PUB_DIFFERENCE)
-            {
-                // Publish message on radio
-                publish = true;
-            }
-
-            if (publish)
-            {
-                snprintf(topic, sizeof(topic), "soil-sensor/%llx/moisture", device_address);
-
-                // Publish sensor moisture message on radio
-                bc_radio_pub_int(topic, &moisture);
-
-                /*
-                // Print also RAW value from capacitance chip
-                int raw = 0;
-                bc_soil_sensor_get_cap_raw(self, device_address, (uint16_t*)&raw);
-                snprintf(topic, sizeof(topic), "soil-sensor/%llx/raw", device_address);
-                // Publish sensor RAW message on radio
-                bc_radio_pub_int(topic, &raw);
-                */
-
-                // Schedule next moisture report
-                sensor_moisture_tick_report[index] = bc_tick_get() + SENSOR_MOISTURE_PUB_INTERVAL;
-
-                // Remember last published value
-                sensor_last_published_moisture[index] = moisture;
-            }
+            /*
+            // Experimental - send percent moisture value based on sensor calibration
+            int moisture;
+            bc_soil_sensor_get_moisture(self, device_address, &moisture);
+            snprintf(topic, sizeof(topic), "soil-sensor/%llx/moisture", device_address);
+            bc_radio_pub_int(topic, &moisture);
+            */
         }
     }
     else if (event == BC_SOIL_SENSOR_EVENT_ERROR)
