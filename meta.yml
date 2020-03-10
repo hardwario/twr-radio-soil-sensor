@@ -2,9 +2,9 @@ article: https://www.bigclown.com/doc/projects/radio-soil-sensor/
 video: https://www.youtube.com/watch?v=6kU-_ldaGOw&feature=youtu.be
 images:
   - title:
-    url: https://cdn.myshoptet.com/usr/shop.hardwario.com/user/shop/category_portrait/304-1_soil-sensor-45b.jpg?5de56e1c
+    url: https://github.com/hardwario/website/blob/master/static/kits-images/soil-moisture/hover.png
 assembly:
-  - name: BigClown Soil Sensor
-  - name: BigClown Core Module
-  - name: BigClown Sensor Module
-  - name: BigClown Battery Module
+  - name: HARDWARIO Soil Sensor
+  - name: HARDWARIO Core Module
+  - name: HARDWARIO Sensor Module
+  - name: HARDWARIO Battery Module

@@ -1,11 +1,11 @@
-<a href="https://www.bigclown.com/"><img src="https://bigclown.sirv.com/logo.png" width="200" alt="BigClown Logo" align="right"></a>
+<a href="https://www.hardwario.com/"><img src="https://www.hardwario.com/ci/assets/hw-logo.svg" width="200" alt="HARDWARIO Logo" align="right"></a>
 
-# Firmware for BigClown Radio Soil sensor
+# Firmware for HARDWARIO Radio Soil sensor
 
 [![Travis](https://img.shields.io/travis/bigclownlabs/bcf-radio-soil-sensor/master.svg)](https://travis-ci.org/bigclownlabs/bcf-radio-soil-sensor)
 [![Release](https://img.shields.io/github/release/bigclownlabs/bcf-radio-soil-sensor.svg)](https://github.com/bigclownlabs/bcf-radio-soil-sensor/releases)
 [![License](https://img.shields.io/github/license/bigclownlabs/bcf-radio-soil-sensor.svg)](https://github.com/bigclownlabs/bcf-radio-soil-sensor/blob/master/LICENSE)
-[![Twitter](https://img.shields.io/twitter/follow/BigClownLabs.svg?style=social&label=Follow)](https://twitter.com/BigClownLabs)
+[![Twitter](https://img.shields.io/twitter/follow/hardwario_en.svg?style=social&label=Follow)](https://twitter.com/hardwario_en)
 
 See the project documentation on this link:
 
