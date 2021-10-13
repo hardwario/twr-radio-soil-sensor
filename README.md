@@ -2,7 +2,7 @@
 
 # Firmware for HARDWARIO Radio Soil sensor
 
-[![Travis](https://img.shields.io/travis/bigclownlabs/bcf-radio-soil-sensor/master.svg)](https://travis-ci.org/bigclownlabs/bcf-radio-soil-sensor)
+[![build](https://github.com/hardwario/twr-radio-soil-sensor/actions/workflows/main.yml/badge.svg)](https://github.com/hardwario/twr-radio-soil-sensor/actions/workflows/main.yml)
 [![Release](https://img.shields.io/github/release/bigclownlabs/bcf-radio-soil-sensor.svg)](https://github.com/bigclownlabs/bcf-radio-soil-sensor/releases)
 [![License](https://img.shields.io/github/license/bigclownlabs/bcf-radio-soil-sensor.svg)](https://github.com/bigclownlabs/bcf-radio-soil-sensor/blob/master/LICENSE)
 [![Twitter](https://img.shields.io/twitter/follow/hardwario_en.svg?style=social&label=Follow)](https://twitter.com/hardwario_en)
