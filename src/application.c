@@ -118,6 +118,7 @@ void tmp112_event_handler(twr_tmp112_t *self, twr_tmp112_event_t event, void *ev
 void soil_sensor_event_handler(twr_soil_sensor_t *self, uint64_t device_address, twr_soil_sensor_event_t event, void *event_param)
 {
     static char topic[64];
+    uint8_t *b = (uint8_t*)&device_address;
 
     if (event == TWR_SOIL_SENSOR_EVENT_UPDATE)
     {
@@ -132,7 +133,8 @@ void soil_sensor_event_handler(twr_soil_sensor_t *self, uint64_t device_address,
 
         if (twr_soil_sensor_get_temperature_celsius(self, device_address, &temperature))
         {
-            snprintf(topic, sizeof(topic), "soil-sensor/%llx/temperature", device_address);
+            snprintf(topic, sizeof(topic), "soil-sensor/%02x%02x%02x%02x%02x%02x%02x%02x/temperature", b[7], b[6], b[5], b[4], b[3], b[2], b[1], b[0]);
+            //snprintf(topic, sizeof(topic), "soil-sensor/%llx/temperature", device_address);
 
             // Publish temperature message on radio
             twr_radio_pub_float(topic, &temperature);
@@ -142,7 +144,8 @@ void soil_sensor_event_handler(twr_soil_sensor_t *self, uint64_t device_address,
 
         if (twr_soil_sensor_get_cap_raw(self, device_address, &raw_cap_u16))
         {
-            snprintf(topic, sizeof(topic), "soil-sensor/%llx/raw", device_address);
+            snprintf(topic, sizeof(topic), "soil-sensor/%02x%02x%02x%02x%02x%02x%02x%02x/raw", b[7], b[6], b[5], b[4], b[3], b[2], b[1], b[0]);
+            //snprintf(topic, sizeof(topic), "soil-sensor/%llx/raw", device_address);
 
             // Publish raw capacitance value message on radio
             int raw_cap = (int)raw_cap_u16;
