@@ -204,7 +204,7 @@ void application_init(void)
 
     // Initialize radio
     twr_radio_init(TWR_RADIO_MODE_NODE_SLEEPING);
-    twr_radio_pairing_request("soil-sensor", VERSION);
+    twr_radio_pairing_request("soil-sensor", FW_VERSION);
 
     twr_scheduler_register(switch_to_normal_mode_task, NULL, SERVICE_MODE_INTERVAL);
 
